@@ -1,0 +1,85 @@
+name: lexsn_mobile
+description: LexSn — Application mobile pour avocats (Sénégal)
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP & API
+  dio: ^5.4.3
+  retrofit: ^4.1.0
+
+  #toast
+  fluttertoast: ^8.2.4
+
+  # State management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^13.2.0
+
+  # Stockage local & sécurité
+  flutter_secure_storage: ^9.0.0
+  shared_preferences: ^2.2.3
+
+  # UI
+  google_fonts: ^6.2.1
+  cached_network_image: ^3.3.1
+  shimmer: ^3.0.0
+  flutter_svg: ^2.0.10+1
+  badges: ^3.1.2
+  intl: ^0.19.0
+  timeago: ^3.6.1
+
+  # Date/Calendar
+  table_calendar: ^3.1.1
+  syncfusion_flutter_calendar: ^25.1.38
+
+  # Notifications
+  flutter_local_notifications: ^17.1.2
+  timezone: ^0.9.3
+
+  flutter_localizations:
+    sdk: flutter
+
+  # PDF
+  flutter_pdfview: ^1.3.2
+  open_filex: ^4.5.0
+
+  # Utilitaires
+  url_launcher: ^6.3.0
+  share_plus: ^9.0.0
+  image_picker: ^1.1.2
+  file_picker: ^8.0.3
+  permission_handler: ^11.3.1
+  connectivity_plus: ^6.0.3
+  pull_to_refresh: ^2.0.0
+  flutter_slidable: ^3.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.9
+  retrofit_generator: ^8.1.0
+  riverpod_generator: ^2.4.0
+  json_serializable: ^6.8.0
+  json_annotation: ^4.9.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+  fonts:
+    - family: PlayfairDisplay
+      fonts:
+        - asset: assets/fonts/PlayfairDisplay-Regular.ttf
+        - asset: assets/fonts/PlayfairDisplay-SemiBold.ttf
+          weight: 600
