@@ -505,4 +505,5 @@ class _FieldErrorText extends StatelessWidget {
         child: Text(message,
             style: const TextStyle(fontSize: 12, color: LexSnTheme.danger)),
       );
+      
 }
