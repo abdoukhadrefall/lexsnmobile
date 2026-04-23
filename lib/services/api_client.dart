@@ -63,6 +63,8 @@ class ApiClient {
     // Intercepteur Auth
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
+          print("➡️ METHOD: ${options.method}");
+          print("➡️ URL: ${options.uri}");
         final token = await _storage.read(key: 'auth_token');
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
