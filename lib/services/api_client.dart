@@ -3,11 +3,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-// const String _baseUrl = 'https://lexsnbackend-main-grtmt0.free.laravel.cloud/api'; // ← à configurer
-const String _baseUrl = 'http://127.0.0.1:8001/api'; // ← à configurer
+const String _baseUrl = 'https://lexsnbackend-main-grtmt0.free.laravel.cloud/api';
+ // ← à configurer
+// const String _baseUrl = 'http://127.0.0.1:8001/api'; // ← à configurer
 
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
+
 
 // ─── Exception métier ────────────────────────────────────────────────────────
 
