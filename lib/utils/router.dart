@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lexsn_mobile/screens/rendezvous/rendezvous_detail_screen.dart';
+import 'package:lexsn_mobile/screens/rendezvous/rendezvous_form_screen.dart';
+import 'package:lexsn_mobile/screens/rendezvous/rendezvous_screen.dart';
 
 import '../services/auth_service.dart';
 import '../screens/splash_screen.dart';
@@ -155,6 +158,25 @@ final routerProvider = Provider<GoRouter>((ref) {
                 name: 'facture-detail',
                 builder: (_, s) => FactureDetailScreen(
                   factureId: int.parse(s.pathParameters['id']!),
+                ),
+              ),
+            ],
+          ),GoRoute(
+            path: '/rendezvous',
+            name: 'rendezvous',
+            builder: (_, __) => const RendezVousScreen(),
+            routes: [
+              GoRoute(
+                path: ':id',
+                name: 'rendezvous-detail',
+                builder: (_, s) => RendezVousDetailScreen(
+                  rdvId: int.parse(s.pathParameters['id']!),
+                ),
+              ),GoRoute(
+                path: ':id/modifier',
+                name: 'rendezvous-modifier',
+                builder: (_, s) => RendezVousFormScreen(
+                  rdvId: int.parse(s.pathParameters['id']!),
                 ),
               ),
             ],

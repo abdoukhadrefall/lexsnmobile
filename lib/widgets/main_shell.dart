@@ -35,7 +35,7 @@ class MainShell extends StatelessWidget {
               case 1: context.go('/dossiers');   break;
               case 2: context.go('/audiences');  break;
               case 3: context.go('/clients');    break;
-              case 4: context.go('/factures');   break;
+              case 4: context.go('/rendezvous');   break;
             }
           },
           items: const [
@@ -59,11 +59,11 @@ class MainShell extends StatelessWidget {
               activeIcon: Icon(Icons.people),
               label: 'Clients',
             ),
-            // BottomNavigationBarItem(
-            //   icon: Icon(Icons.receipt_long_outlined),
-            //   activeIcon: Icon(Icons.receipt_long),
-            //   label: 'Honoraires',
-            // ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.calendar_month_outlined),
+              activeIcon: Icon(Icons.calendar_month),
+              label: 'RDV',
+            ),
           ],
         ),
       ),

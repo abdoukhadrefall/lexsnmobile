@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-const String _baseUrl = 'https://lexsnbackend-main-grtmt0.free.laravel.cloud/api'; // ← à configurer
+// const String _baseUrl = 'https://lexsnbackend-main-grtmt0.free.laravel.cloud/api'; // ← à configurer
+const String _baseUrl = 'http://127.0.0.1:8001/api'; // ← à configurer
+
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 
@@ -272,13 +274,43 @@ class ApiClient {
       throw _convert(e);
     }
   }
- Future<Map<String, dynamic>> getMe() async {
-    try {
-      final response = await _dio.get('/auth/me');
-      return response.data;
-    } catch (e) {
-      print('Erreur getMe: $e');
-      rethrow;
-    }
-  }
+//  Future<Map<String, dynamic>> getMe() async {
+//     try {
+//       final response = await _dio.get('/auth/me');
+//       return response.data;
+//     } catch (e) {
+//       print('Erreur getMe: $e');
+//       rethrow;
+//     }
+//   }
+
+Future<Map<String, dynamic>> getMe() =>
+    _call(() => _dio.get('/auth/me'));
+
+// ── Rendez-vous ──────────────────────────────────────────────────────────────
+Future<Map<String, dynamic>> getRendezVous({
+  String? mois,
+  String? statut,
+  String? type,
+}) =>
+    _call(() => _dio.get('/rendezvous', queryParameters: {
+          if (mois != null) 'mois': mois,
+          if (statut != null && statut.isNotEmpty) 'statut': statut,
+          if (type != null && type.isNotEmpty) 'type': type,
+        }));
+
+Future<Map<String, dynamic>> getRendezVousDetail(int id) =>
+    _call(() => _dio.get('/rendezvous/$id'));
+
+Future<Map<String, dynamic>> createRendezVous(Map<String, dynamic> data) =>
+    _call(() => _dio.post('/rendezvous', data: data));
+
+Future<Map<String, dynamic>> updateRendezVous(int id, Map<String, dynamic> data) =>
+    _call(() => _dio.put('/rendezvous/$id', data: data));
+
+Future<void> deleteRendezVous(int id) =>
+    _call(() => _dio.delete('/rendezvous/$id'));
+
+Future<Map<String, dynamic>> getAlertes() =>
+    _call(() => _dio.get('/alertes'));
 }
