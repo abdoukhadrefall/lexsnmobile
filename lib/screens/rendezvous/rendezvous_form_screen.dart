@@ -8,11 +8,16 @@ import '../../models/rendezvous_model.dart';
 import '../../utils/theme.dart';
 
 class RendezVousFormScreen extends ConsumerStatefulWidget {
-  final int? rdvId;
-  final int? clientId;   // pré-remplissage optionnel
-  final int? dossierId;
+  final int? rendezVousId;
+  final int? dossierIdPreselect;
+  final int? clientIdPreselect;
 
-  const RendezVousFormScreen({super.key, this.rdvId, this.clientId, this.dossierId});
+  const RendezVousFormScreen({
+    super.key,
+    this.rendezVousId,
+    this.dossierIdPreselect,
+    this.clientIdPreselect,
+  });
 
   @override
   ConsumerState<RendezVousFormScreen> createState() => _RendezVousFormScreenState();
@@ -24,50 +29,52 @@ class _RendezVousFormScreenState extends ConsumerState<RendezVousFormScreen> {
   bool _dataLoaded = false;
 
   final _titreCtrl       = TextEditingController();
-  final _lieuCtrl        = TextEditingController();
+  final _lieuCtrl        = TextEditingController(text: 'Cabinet');
   final _lienVisioCtrl   = TextEditingController();
-  final _descCtrl        = TextEditingController();
+  final _descriptionCtrl = TextEditingController();
   final _notesCtrl       = TextEditingController();
 
-  String _type    = 'consultation';
-  String _statut  = 'planifie';
-  bool _enLigne   = false;
-  int _rappel     = 60;
+  String   _type           = 'consultation';
+  String   _statut         = 'planifie';
+  DateTime _debut          = DateTime.now().add(const Duration(days: 1)).copyWith(hour: 9, minute: 0, second: 0);
+  DateTime _fin            = DateTime.now().add(const Duration(days: 1)).copyWith(hour: 10, minute: 0, second: 0);
+  bool     _enLigne        = false;
+  int      _rappelMinutes  = 60;
+  int?     _clientId;
+  int?     _dossierId;
+  int?     _avocatId;
 
-  DateTime _debut = DateTime.now().add(const Duration(hours: 1));
-  DateTime _fin   = DateTime.now().add(const Duration(hours: 2));
-
-  int? _clientId;
-  int? _dossierId;
-  int? _userId;
-
-  List<Map<String, dynamic>> _clients = [];
+  List<Map<String, dynamic>> _clients  = [];
   List<Map<String, dynamic>> _dossiers = [];
   List<Map<String, dynamic>> _avocats  = [];
+  Map<String, String> _fieldErrors     = {};
 
-  Map<String, String> _fieldErrors = {};
+  static const _types = RendezVousModel.typesLabels;
+  static const _statuts = RendezVousModel.statutsLabels;
 
   @override
   void initState() {
     super.initState();
-    _clientId  = widget.clientId;
-    _dossierId = widget.dossierId;
+    _clientId  = widget.clientIdPreselect;
+    _dossierId = widget.dossierIdPreselect;
     _loadData();
   }
 
   Future<void> _loadData() async {
     try {
-      final api = ref.read(apiClientProvider);
+      final api     = ref.read(apiClientProvider);
       final results = await Future.wait([
         api.getClients(),
-        api.getDossiers(),
         api.getDashboard(),
       ]);
       if (mounted) {
         setState(() {
           _clients  = List<Map<String, dynamic>>.from(results[0]['data'] as List? ?? []);
-          _dossiers = List<Map<String, dynamic>>.from(results[1]['data'] as List? ?? []);
-          _avocats  = List<Map<String, dynamic>>.from(results[2]['avocats'] as List? ?? []);
+          _avocats  = List<Map<String, dynamic>>.from(results[1]['avocats'] as List? ?? []);
+          _dossiers = List<Map<String, dynamic>>.from(results[1]['dossiers'] as List? ?? []);
+          if (_avocatId == null && _avocats.isNotEmpty) {
+            _avocatId = _avocats.first['id'] as int?;
+          }
           _dataLoaded = true;
         });
       }
@@ -80,20 +87,15 @@ class _RendezVousFormScreenState extends ConsumerState<RendezVousFormScreen> {
     final date = await showDatePicker(
       context: context,
       initialDate: _debut,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 730)),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
       locale: const Locale('fr'),
     );
     if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_debut),
-    );
-    if (time == null) return;
-    final newDebut = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_debut));
+    if (time == null || !mounted) return;
     setState(() {
-      _debut = newDebut;
-      // Ajuster la fin si besoin (durée min 30 min)
+      _debut = DateTime(date.year, date.month, date.day, time.hour, time.minute);
       if (_fin.isBefore(_debut.add(const Duration(minutes: 30)))) {
         _fin = _debut.add(const Duration(hours: 1));
       }
@@ -105,26 +107,26 @@ class _RendezVousFormScreenState extends ConsumerState<RendezVousFormScreen> {
       context: context,
       initialDate: _fin,
       firstDate: _debut,
-      lastDate: DateTime.now().add(const Duration(days: 730)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
       locale: const Locale('fr'),
     );
     if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_fin),
-    );
-    if (time == null) return;
-    final newFin = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    if (newFin.isBefore(_debut)) {
-      _showError('La fin doit être après le début.');
-      return;
-    }
-    setState(() => _fin = newFin);
+    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_fin));
+    if (time == null || !mounted) return;
+    setState(() => _fin = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+  }
+
+  void _setDuree(int minutes) {
+    setState(() => _fin = _debut.add(Duration(minutes: minutes)));
   }
 
   Future<void> _submit() async {
     setState(() => _fieldErrors = {});
     if (!_formKey.currentState!.validate()) return;
+    if (_fin.isBefore(_debut)) {
+      setState(() => _fieldErrors['fin'] = 'La fin doit être après le début.');
+      return;
+    }
 
     setState(() => _loading = true);
 
@@ -132,70 +134,65 @@ class _RendezVousFormScreenState extends ConsumerState<RendezVousFormScreen> {
       final data = {
         'titre':           _titreCtrl.text.trim(),
         'type':            _type,
+        'statut':          _statut,
         'debut':           _debut.toIso8601String(),
         'fin':             _fin.toIso8601String(),
-        'statut':          _statut,
         'en_ligne':        _enLigne,
-        'rappel_minutes':  _rappel,
-        if (_lieuCtrl.text.trim().isNotEmpty && !_enLigne)
-          'lieu': _lieuCtrl.text.trim(),
-        if (_lienVisioCtrl.text.trim().isNotEmpty && _enLigne)
-          'lien_visio': _lienVisioCtrl.text.trim(),
-        if (_descCtrl.text.trim().isNotEmpty)
-          'description': _descCtrl.text.trim(),
-        if (_notesCtrl.text.trim().isNotEmpty)
-          'notes': _notesCtrl.text.trim(),
+        'rappel_minutes':  _rappelMinutes,
         if (_clientId != null)  'client_id':  _clientId,
         if (_dossierId != null) 'dossier_id': _dossierId,
-        if (_userId != null)    'user_id':    _userId,
+        if (_avocatId != null)  'user_id':    _avocatId,
+        if (!_enLigne && _lieuCtrl.text.isNotEmpty)     'lieu':       _lieuCtrl.text.trim(),
+        if (_enLigne && _lienVisioCtrl.text.isNotEmpty) 'lien_visio': _lienVisioCtrl.text.trim(),
+        if (_descriptionCtrl.text.isNotEmpty)            'description':_descriptionCtrl.text.trim(),
+        if (_notesCtrl.text.isNotEmpty)                  'notes':      _notesCtrl.text.trim(),
       };
 
-      if (widget.rdvId != null) {
-        await ref.read(apiClientProvider).updateRendezVous(widget.rdvId!, data);
-      } else {
-        await ref.read(apiClientProvider).createRendezVous(data);
-      }
+      final result = widget.rendezVousId == null
+          ? await ref.read(apiClientProvider).createRendezVous(data)
+          : await ref.read(apiClientProvider).updateRendezVous(widget.rendezVousId!, data);
+
+      final id = ((result['data'] as Map<String, dynamic>?)?['id'] as int?) ?? widget.rendezVousId;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(widget.rdvId != null
-              ? 'Rendez-vous mis à jour ✓'
-              : 'Rendez-vous créé ✓'),
+          content: Text(widget.rendezVousId == null
+              ? 'Rendez-vous créé ✓'
+              : 'Rendez-vous mis à jour ✓'),
           backgroundColor: LexSnTheme.success,
         ));
-        context.pop();
+        if (id != null) context.go('/rendezvous/$id');
+        else context.go('/rendezvous');
       }
     } on ApiException catch (e) {
       if (mounted) {
         setState(() {
           _loading = false;
-          _fieldErrors = e.validationErrors.map((k, v) => MapEntry(k, v.first));
+          _fieldErrors = Map<String, String>.fromEntries(
+            e.validationErrors.entries.map((en) => MapEntry(en.key, en.value.first)),
+          );
         });
-        _showError(e.userMessage);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.userMessage),
+          backgroundColor: LexSnTheme.danger,
+          behavior: SnackBarBehavior.floating,
+        ));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
-        _showError('Erreur inattendue: $e');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: LexSnTheme.danger,
+        ));
       }
     }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(msg),
-        backgroundColor: LexSnTheme.danger,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 5),
-      ));
   }
 
   @override
   void dispose() {
     _titreCtrl.dispose(); _lieuCtrl.dispose(); _lienVisioCtrl.dispose();
-    _descCtrl.dispose();  _notesCtrl.dispose();
+    _descriptionCtrl.dispose(); _notesCtrl.dispose();
     super.dispose();
   }
 
@@ -203,358 +200,279 @@ class _RendezVousFormScreenState extends ConsumerState<RendezVousFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.rdvId == null ? 'Nouveau rendez-vous' : 'Modifier le RDV'),
+        title: Text(widget.rendezVousId == null ? 'Nouveau rendez-vous' : 'Modifier le RDV'),
       ),
       body: !_dataLoaded
           ? const Center(child: CircularProgressIndicator(color: LexSnTheme.primary))
           : Form(
               key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
+              child: ListView(padding: const EdgeInsets.all(16), children: [
 
-                  // ── Titre ─────────────────────────────────────────────
-                  TextFormField(
-                    controller: _titreCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Titre *',
-                      hintText: 'Ex: Consultation Diallo — succession',
-                      errorText: _fieldErrors['titre'],
-                    ),
-                    validator: (v) => (v?.trim().isNotEmpty ?? false) ? null : 'Champ requis',
-                    textCapitalization: TextCapitalization.sentences,
+                // Titre
+                TextFormField(
+                  controller: _titreCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Titre *',
+                    hintText: 'Ex: Consultation initiale M. Diallo',
+                    errorText: _fieldErrors['titre'],
                   ),
+                  validator: (v) => v?.trim().isEmpty ?? true ? 'Champ requis' : null,
+                  textCapitalization: TextCapitalization.sentences,
+                ),
 
-                  const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-                  // ── Type ──────────────────────────────────────────────
-                  const _Label('Type *'),
-                  Wrap(
-                    spacing: 8, runSpacing: 8,
-                    children: RendezVousModel.typesLabels.entries.map((e) {
-                      final sel = _type == e.key;
-                      return GestureDetector(
-                        onTap: () => setState(() => _type = e.key),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: sel ? LexSnTheme.primary : LexSnTheme.surface,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: sel ? LexSnTheme.primary : LexSnTheme.border),
-                          ),
-                          child: Text(e.value, style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w500,
-                            color: sel ? Colors.white : const Color(0xFF374151),
-                          )),
+                // Type
+                const _Label('Type de rendez-vous *'),
+                Wrap(spacing: 8, runSpacing: 8,
+                  children: _types.entries.map((e) {
+                    final sel = _type == e.key;
+                    return GestureDetector(
+                      onTap: () => setState(() => _type = e.key),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color:  sel ? LexSnTheme.primary : LexSnTheme.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: sel ? LexSnTheme.primary : LexSnTheme.border),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                  if (_fieldErrors['type'] != null)
-                    _FieldError(_fieldErrors['type']!),
+                        child: Text(e.value, style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w500,
+                          color: sel ? Colors.white : const Color(0xFF374151),
+                        )),
+                      ),
+                    );
+                  }).toList(),
+                ),
 
-                  const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-                  // ── Début ─────────────────────────────────────────────
-                  _DateTimePicker(
-                    label: 'Début *',
+                // Dates
+                const _Label('Date et heure *'),
+                Row(children: [
+                  Expanded(child: _DateTile(
+                    label: 'Début',
                     value: _debut,
                     onTap: _pickDebut,
-                    hasError: _fieldErrors['debut'] != null,
-                  ),
-                  if (_fieldErrors['debut'] != null)
-                    _FieldError(_fieldErrors['debut']!),
-
-                  const SizedBox(height: 12),
-
-                  // ── Fin ───────────────────────────────────────────────
-                  _DateTimePicker(
-                    label: 'Fin *',
+                  )),
+                  const SizedBox(width: 12),
+                  Expanded(child: _DateTile(
+                    label: 'Fin',
                     value: _fin,
                     onTap: _pickFin,
-                    hasError: _fieldErrors['fin'] != null,
-                  ),
-                  if (_fieldErrors['fin'] != null)
-                    _FieldError(_fieldErrors['fin']!),
-
-                  // Durée calculée
+                    hasError: _fieldErrors.containsKey('fin'),
+                  )),
+                ]),
+                if (_fieldErrors['fin'] != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 6, left: 4),
-                    child: Text(
-                      'Durée : ${_dureeLabel()}',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                    ),
+                    padding: const EdgeInsets.only(top: 4, left: 12),
+                    child: Text(_fieldErrors['fin']!, style: const TextStyle(fontSize: 12, color: LexSnTheme.danger)),
                   ),
 
-                  const SizedBox(height: 20),
+                const SizedBox(height: 10),
 
-                  // ── Lieu / En ligne ───────────────────────────────────
-                  SwitchListTile(
-                    value: _enLigne,
-                    onChanged: (v) => setState(() => _enLigne = v),
-                    title: const Text('Réunion en ligne', style: TextStyle(fontSize: 14)),
-                    subtitle: const Text('Visioconférence, appel vidéo...', style: TextStyle(fontSize: 12)),
-                    activeColor: LexSnTheme.primary,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-
-                  if (!_enLigne)
-                    TextFormField(
-                      controller: _lieuCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Lieu',
-                        hintText: 'Adresse, salle...',
-                        prefixIcon: const Icon(Icons.location_on_outlined, size: 18),
-                        errorText: _fieldErrors['lieu'],
+                // Durée rapide
+                const _Label('Durée rapide'),
+                Wrap(spacing: 8,
+                  children: {'30 min': 30, '1h': 60, '1h30': 90, '2h': 120}.entries.map((e) =>
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
+                      onPressed: () => _setDuree(e.value),
+                      child: Text(e.key, style: const TextStyle(fontSize: 12)),
                     ),
+                  ).toList(),
+                ),
 
-                  if (_enLigne)
-                    TextFormField(
-                      controller: _lienVisioCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Lien de la réunion',
-                        hintText: 'https://meet.google.com/...',
-                        prefixIcon: const Icon(Icons.videocam_outlined, size: 18),
-                        errorText: _fieldErrors['lien_visio'],
-                      ),
-                      keyboardType: TextInputType.url,
-                    ),
+                const SizedBox(height: 20),
 
-                  const SizedBox(height: 16),
+                // Mode
+                SwitchListTile(
+                  value: _enLigne,
+                  onChanged: (v) => setState(() => _enLigne = v),
+                  title: const Text('En ligne (visioconférence)', style: TextStyle(fontSize: 14)),
+                  subtitle: const Text('Teams, Meet, WhatsApp...', style: TextStyle(fontSize: 12)),
+                  activeColor: LexSnTheme.primary,
+                  contentPadding: EdgeInsets.zero,
+                ),
 
-                  // ── Client ────────────────────────────────────────────
-                  DropdownButtonFormField<int>(
-                    value: _clientId,
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: 'Client (optionnel)',
-                      errorText: _fieldErrors['client_id'],
-                    ),
-                    items: [
-                      const DropdownMenuItem<int>(
-                          value: null, child: Text('— Aucun —')),
-                      ..._clients.map((c) {
-                        final nom    = c['nom'] as String? ?? '';
-                        final prenom = c['prenom'] as String? ?? '';
-                        return DropdownMenuItem<int>(
-                          value: c['id'] as int,
-                          child: Text('$nom $prenom'.trim(), overflow: TextOverflow.ellipsis),
-                        );
-                      }),
-                    ],
-                    onChanged: (v) => setState(() {
-                      _clientId = v;
-                      _fieldErrors.remove('client_id');
-                    }),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // ── Dossier ───────────────────────────────────────────
-                  DropdownButtonFormField<int>(
-                    value: _dossierId,
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: 'Dossier (optionnel)',
-                      errorText: _fieldErrors['dossier_id'],
-                    ),
-                    items: [
-                      const DropdownMenuItem<int>(
-                          value: null, child: Text('— Aucun —')),
-                      ..._dossiers.map((d) {
-                        final ref = d['reference'] as String? ?? '';
-                        final intitule = d['intitule'] as String? ?? '';
-                        return DropdownMenuItem<int>(
-                          value: d['id'] as int,
-                          child: Text('$ref — $intitule', overflow: TextOverflow.ellipsis),
-                        );
-                      }),
-                    ],
-                    onChanged: (v) => setState(() {
-                      _dossierId = v;
-                      _fieldErrors.remove('dossier_id');
-                    }),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // ── Assigné à ─────────────────────────────────────────
-                  if (_avocats.isNotEmpty)
-                    DropdownButtonFormField<int>(
-                      value: _userId,
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        labelText: 'Assigné à',
-                        errorText: _fieldErrors['user_id'],
-                      ),
-                      items: [
-                        const DropdownMenuItem<int>(
-                            value: null, child: Text('— Moi-même —')),
-                        ..._avocats.map((a) {
-                          final nom = a['nom'] as String? ?? '';
-                          return DropdownMenuItem<int>(
-                            value: a['id'] as int,
-                            child: Text(nom, overflow: TextOverflow.ellipsis),
-                          );
-                        }),
-                      ],
-                      onChanged: (v) => setState(() => _userId = v),
-                    ),
-
-                  const SizedBox(height: 16),
-
-                  // ── Rappel ────────────────────────────────────────────
-                  DropdownButtonFormField<int>(
-                    value: _rappel,
+                if (!_enLigne)
+                  TextFormField(
+                    controller: _lieuCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Rappel',
-                      prefixIcon: Icon(Icons.notifications_outlined, size: 18),
+                      labelText: 'Lieu',
+                      hintText: 'Ex: Cabinet, chez le client...',
+                      prefixIcon: Icon(Icons.location_on_outlined, size: 18),
                     ),
-                    items: RendezVousModel.rappelOptions.map((opt) =>
-                        DropdownMenuItem<int>(
-                          value: opt['value'] as int,
-                          child: Text(opt['label'] as String),
-                        )).toList(),
-                    onChanged: (v) => setState(() => _rappel = v ?? 60),
                   ),
 
-                  const SizedBox(height: 16),
-
-                  // ── Statut (modification uniquement) ──────────────────
-                  if (widget.rdvId != null) ...[
-                    DropdownButtonFormField<String>(
-                      value: _statut,
-                      decoration: const InputDecoration(labelText: 'Statut'),
-                      items: RendezVousModel.statutsLabels.entries
-                          .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _statut = v ?? 'planifie'),
+                if (_enLigne)
+                  TextFormField(
+                    controller: _lienVisioCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Lien visio',
+                      hintText: 'https://meet.google.com/...',
+                      prefixIcon: const Icon(Icons.videocam_outlined, size: 18),
+                      errorText: _fieldErrors['lien_visio'],
                     ),
-                    const SizedBox(height: 16),
+                    keyboardType: TextInputType.url,
+                  ),
+
+                const SizedBox(height: 20),
+
+                // Rappel
+                DropdownButtonFormField<int>(
+                  value: _rappelMinutes,
+                  decoration: const InputDecoration(labelText: 'Rappel avant le RDV'),
+                  items: const [
+                    DropdownMenuItem(value: 15,   child: Text('15 minutes')),
+                    DropdownMenuItem(value: 30,   child: Text('30 minutes')),
+                    DropdownMenuItem(value: 60,   child: Text('1 heure')),
+                    DropdownMenuItem(value: 120,  child: Text('2 heures')),
+                    DropdownMenuItem(value: 1440, child: Text('1 jour')),
                   ],
+                  onChanged: (v) => setState(() => _rappelMinutes = v ?? 60),
+                ),
 
-                  // ── Description ───────────────────────────────────────
-                  TextFormField(
-                    controller: _descCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Description',
-                      hintText: 'Objet du rendez-vous, points à aborder...',
-                      alignLabelWithHint: true,
-                      errorText: _fieldErrors['description'],
-                    ),
-                    maxLines: 3,
-                    textCapitalization: TextCapitalization.sentences,
+                const SizedBox(height: 20),
+
+                // Client
+                DropdownButtonFormField<int>(
+                  value: _clientId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Client (optionnel)'),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('— Aucun —')),
+                    ..._clients.map((c) => DropdownMenuItem<int>(
+                      value: c['id'] as int,
+                      child: Text('${c['nom']} ${c['prenom'] ?? ''}'.trim(), overflow: TextOverflow.ellipsis),
+                    )),
+                  ],
+                  onChanged: (v) => setState(() => _clientId = v),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Dossier
+                DropdownButtonFormField<int>(
+                  value: _dossierId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Dossier lié (optionnel)'),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('— Aucun —')),
+                    ..._dossiers.map((d) => DropdownMenuItem<int>(
+                      value: d['id'] as int,
+                      child: Text('${d['reference']} — ${d['client'] ?? ''}', overflow: TextOverflow.ellipsis),
+                    )),
+                  ],
+                  onChanged: (v) => setState(() => _dossierId = v),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Avocat
+                if (_avocats.isNotEmpty)
+                  DropdownButtonFormField<int>(
+                    value: _avocatId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Responsable *'),
+                    items: _avocats.map((a) => DropdownMenuItem<int>(
+                      value: a['id'] as int,
+                      child: Text('${a['prenom'] ?? ''} ${a['nom'] ?? ''}'.trim(), overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (v) => setState(() => _avocatId = v),
                   ),
 
-                  const SizedBox(height: 12),
+                const SizedBox(height: 20),
 
-                  // ── Notes internes ────────────────────────────────────
-                  TextFormField(
-                    controller: _notesCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Notes internes',
-                      hintText: 'Notes privées...',
-                      alignLabelWithHint: true,
-                      errorText: _fieldErrors['notes'],
-                    ),
-                    maxLines: 2,
-                    textCapitalization: TextCapitalization.sentences,
+                // Description
+                TextFormField(
+                  controller: _descriptionCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Description / Ordre du jour',
+                    hintText: 'Documents à apporter, points à aborder...',
+                    alignLabelWithHint: true,
                   ),
+                  maxLines: 3,
+                  textCapitalization: TextCapitalization.sentences,
+                ),
 
-                  const SizedBox(height: 32),
+                const SizedBox(height: 16),
 
-                  ElevatedButton(
-                    onPressed: _loading ? null : _submit,
-                    child: _loading
-                        ? const SizedBox(
-                            width: 20, height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : Text(widget.rdvId == null
-                            ? 'Créer le rendez-vous'
-                            : 'Enregistrer'),
+                // Notes privées
+                TextFormField(
+                  controller: _notesCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes privées',
+                    hintText: 'Rappels internes, stratégie...',
+                    alignLabelWithHint: true,
+                    prefixIcon: Icon(Icons.lock_outline, size: 16),
                   ),
-                  const SizedBox(height: 24),
-                ],
-              ),
+                  maxLines: 3,
+                  textCapitalization: TextCapitalization.sentences,
+                ),
+
+                const SizedBox(height: 32),
+
+                ElevatedButton(
+                  onPressed: _loading ? null : _submit,
+                  child: _loading
+                      ? const SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Text(widget.rendezVousId == null ? 'Créer le rendez-vous' : 'Enregistrer'),
+                ),
+                const SizedBox(height: 24),
+              ]),
             ),
     );
   }
-
-  String _dureeLabel() {
-    final diff = _fin.difference(_debut);
-    if (diff.isNegative || diff.inMinutes == 0) return 'invalide';
-    final h = diff.inHours;
-    final m = diff.inMinutes % 60;
-    if (h == 0) return '${m}min';
-    if (m == 0) return '${h}h';
-    return '${h}h${m.toString().padLeft(2, '0')}';
-  }
 }
-
-// ─── Widgets helpers ─────────────────────────────────────────────────────────
 
 class _Label extends StatelessWidget {
   final String text;
   const _Label(this.text);
-
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: const TextStyle(
-          fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF6B7280))),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF6B7280))),
+  );
 }
 
-class _FieldError extends StatelessWidget {
-  final String message;
-  const _FieldError(this.message);
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 6, left: 12),
-        child: Text(message, style: const TextStyle(fontSize: 12, color: LexSnTheme.danger)),
-      );
-}
-
-class _DateTimePicker extends StatelessWidget {
-  final String label;
+class _DateTile extends StatelessWidget {
+  final String   label;
   final DateTime value;
   final VoidCallback onTap;
   final bool hasError;
-  const _DateTimePicker({
-    required this.label, required this.value,
-    required this.onTap, this.hasError = false,
-  });
+
+  const _DateTile({required this.label, required this.value, required this.onTap, this.hasError = false});
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: LexSnTheme.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: hasError ? LexSnTheme.danger : LexSnTheme.border,
-            ),
-          ),
-          child: Row(children: [
-            const Icon(Icons.calendar_month_outlined,
-                size: 18, color: LexSnTheme.primary),
-            const SizedBox(width: 10),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
-              Text(
-                DateFormat('EEEE d MMM yyyy à HH:mm', 'fr_FR').format(value),
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600, color: LexSnTheme.primary),
-              ),
-            ]),
-            const Spacer(),
-            const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF9CA3AF)),
-          ]),
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: LexSnTheme.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: hasError ? LexSnTheme.danger : LexSnTheme.border),
         ),
-      );
+        child: Row(children: [
+          Icon(Icons.calendar_today_outlined, size: 16, color: hasError ? LexSnTheme.danger : const Color(0xFF9CA3AF)),
+          const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
+            Text(
+              DateFormat('dd/MM · HH:mm').format(value),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
+                  color: hasError ? LexSnTheme.danger : LexSnTheme.primary),
+            ),
+          ])),
+        ]),
+      ),
+    );
+  }
 }

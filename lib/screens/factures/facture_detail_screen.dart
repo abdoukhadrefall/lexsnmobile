@@ -27,7 +27,8 @@ class FactureDetailScreen extends ConsumerWidget {
         body: LexSnError(message: 'Facture introuvable',
           onRetry: () => ref.invalidate(_factureDetailProv(factureId))),
       ),
-      data: (data) {
+      data: (response) {
+        final data = response['data'] as Map<String, dynamic>;
         final numero      = data['numero'] as String? ?? '';
         final statut      = data['statut'] as String? ?? '';
         final montantTtc  = (data['montant_ttc'] as num?)?.toDouble() ?? 0;
@@ -58,7 +59,7 @@ class FactureDetailScreen extends ConsumerWidget {
               flexibleSpace: FlexibleSpaceBar(
                 background: Container(
                   color: LexSnTheme.primary,
-                  padding: const EdgeInsets.fromLTRB(20, 100, 20, 16),
+                  padding: EdgeInsets.fromLTRB(20, 60, 20, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.end,

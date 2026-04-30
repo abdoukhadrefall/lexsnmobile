@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lexsn_mobile/screens/rendezvous/rendezvous_detail_screen.dart';
-import 'package:lexsn_mobile/screens/rendezvous/rendezvous_form_screen.dart';
-import 'package:lexsn_mobile/screens/rendezvous/rendezvous_screen.dart';
 
 import '../services/auth_service.dart';
 import '../screens/splash_screen.dart';
@@ -19,6 +16,9 @@ import '../screens/clients/client_detail_screen.dart';
 import '../screens/clients/client_form_screen.dart';
 import '../screens/factures/factures_screen.dart';
 import '../screens/factures/facture_detail_screen.dart';
+import '../screens/rendezvous/rendezvous_screen.dart';
+import '../screens/rendezvous/rendezvous_form_screen.dart';
+import '../screens/rendezvous/rendezvous_detail_screen.dart';
 import '../widgets/main_shell.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -29,82 +29,43 @@ final routerProvider = Provider<GoRouter>((ref) {
     debugLogDiagnostics: false,
     redirect: (context, state) {
       final location = state.matchedLocation;
+      if (authState.isLoading) return location == '/splash' ? null : '/splash';
 
-      // Pendant le chargement initial → rester sur splash
-      if (authState.isLoading) {
-        return location == '/splash' ? null : '/splash';
-      }
-
-      // Erreur d'auth → traiter comme non-connecté
       final isLoggedIn = authState.hasValue && authState.value != null;
       final isSplash   = location == '/splash';
       final isLogin    = location == '/login';
 
-      // Non connecté → login
       if (!isLoggedIn && !isLogin) return '/login';
-
-      // Connecté → ne pas rester sur splash ou login
       if (isLoggedIn && (isSplash || isLogin)) return '/dashboard';
-
       return null;
     },
     routes: [
-      // Splash
-      GoRoute(
-        path: '/splash',
-        builder: (_, __) => const SplashScreen(),
-      ),
+      GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
+      GoRoute(path: '/login', name: 'login', builder: (_, __) => const LoginScreen()),
 
-      // Auth
-      GoRoute(
-        path: '/login',
-        name: 'login',
-        builder: (_, __) => const LoginScreen(),
-      ),
-
-      // Shell avec navigation bar
       ShellRoute(
         builder: (context, state, child) => MainShell(child: child),
         routes: [
+
           // Dashboard
-          GoRoute(
-            path: '/dashboard',
-            name: 'dashboard',
-            builder: (_, __) => const DashboardScreen(),
-          ),
+          GoRoute(path: '/dashboard', name: 'dashboard', builder: (_, __) => const DashboardScreen()),
 
           // Dossiers
           GoRoute(
-            path: '/dossiers',
-            name: 'dossiers',
+            path: '/dossiers', name: 'dossiers',
             builder: (_, __) => const DossiersListScreen(),
             routes: [
+              GoRoute(path: 'nouveau', name: 'dossier-nouveau', builder: (_, __) => const DossierFormScreen()),
               GoRoute(
-                path: 'nouveau',
-                name: 'dossier-nouveau',
-                builder: (_, __) => const DossierFormScreen(),
-              ),
-              GoRoute(
-                path: ':id',
-                name: 'dossier-detail',
-                builder: (_, s) => DossierDetailScreen(
-                  dossierId: int.parse(s.pathParameters['id']!),
-                ),
+                path: ':id', name: 'dossier-detail',
+                builder: (_, s) => DossierDetailScreen(dossierId: int.parse(s.pathParameters['id']!)),
                 routes: [
-                  GoRoute(
-                    path: 'modifier',
-                    name: 'dossier-modifier',
-                    builder: (_, s) => DossierFormScreen(
-                      dossierId: int.parse(s.pathParameters['id']!),
-                    ),
-                  ),
-                  GoRoute(
-                    path: 'audience',
-                    name: 'audience-nouveau',
-                    builder: (_, s) => AudienceFormScreen(
-                      dossierId: int.parse(s.pathParameters['id']!),
-                    ),
-                  ),
+                  GoRoute(path: 'modifier', name: 'dossier-modifier',
+                    builder: (_, s) => DossierFormScreen(dossierId: int.parse(s.pathParameters['id']!))),
+                  GoRoute(path: 'audience', name: 'audience-nouveau',
+                    builder: (_, s) => AudienceFormScreen(dossierId: int.parse(s.pathParameters['id']!))),
+                  GoRoute(path: 'rdv', name: 'rdv-depuis-dossier',
+                    builder: (_, s) => RendezVousFormScreen(dossierIdPreselect: int.parse(s.pathParameters['id']!))),
                 ],
               ),
             ],
@@ -112,72 +73,48 @@ final routerProvider = Provider<GoRouter>((ref) {
 
           // Audiences
           GoRoute(
-            path: '/audiences',
-            name: 'audiences',
+            path: '/audiences', name: 'audiences',
             builder: (_, __) => const AudiencesScreen(),
             routes: [
-              GoRoute(
-                path: ':id/modifier',
-                name: 'audience-modifier',
-                builder: (_, s) => AudienceFormScreen(
-                  audienceId: int.parse(s.pathParameters['id']!),
-                ),
-              ),
+              GoRoute(path: ':id/modifier', name: 'audience-modifier',
+                builder: (_, s) => AudienceFormScreen(audienceId: int.parse(s.pathParameters['id']!))),
             ],
           ),
 
           // Clients
           GoRoute(
-            path: '/clients',
-            name: 'clients',
+            path: '/clients', name: 'clients',
             builder: (_, __) => const ClientsScreen(),
             routes: [
-              GoRoute(
-                path: 'nouveau',
-                name: 'client-nouveau',
-                builder: (_, __) => const ClientFormScreen(),
-              ),
-              GoRoute(
-                path: ':id',
-                name: 'client-detail',
-                builder: (_, s) => ClientDetailScreen(
-                  clientId: int.parse(s.pathParameters['id']!),
-                ),
-              ),
+              GoRoute(path: 'nouveau', name: 'client-nouveau', builder: (_, __) => const ClientFormScreen()),
+              GoRoute(path: ':id', name: 'client-detail',
+                builder: (_, s) => ClientDetailScreen(clientId: int.parse(s.pathParameters['id']!))),
             ],
           ),
 
           // Factures
           GoRoute(
-            path: '/factures',
-            name: 'factures',
+            path: '/factures', name: 'factures',
             builder: (_, __) => const FacturesScreen(),
             routes: [
-              GoRoute(
-                path: ':id',
-                name: 'facture-detail',
-                builder: (_, s) => FactureDetailScreen(
-                  factureId: int.parse(s.pathParameters['id']!),
-                ),
-              ),
+              GoRoute(path: ':id', name: 'facture-detail',
+                builder: (_, s) => FactureDetailScreen(factureId: int.parse(s.pathParameters['id']!))),
             ],
-          ),GoRoute(
-            path: '/rendezvous',
-            name: 'rendezvous',
+          ),
+
+          // Rendez-vous (NOUVEAU)
+          GoRoute(
+            path: '/rendezvous', name: 'rendezvous',
             builder: (_, __) => const RendezVousScreen(),
             routes: [
-              GoRoute(
-                path: ':id',
-                name: 'rendezvous-detail',
-                builder: (_, s) => RendezVousDetailScreen(
-                  rdvId: int.parse(s.pathParameters['id']!),
-                ),
-              ),GoRoute(
-                path: ':id/modifier',
-                name: 'rendezvous-modifier',
-                builder: (_, s) => RendezVousFormScreen(
-                  rdvId: int.parse(s.pathParameters['id']!),
-                ),
+              GoRoute(path: 'nouveau', name: 'rdv-nouveau',
+                builder: (_, __) => const RendezVousFormScreen()),
+              GoRoute(path: ':id', name: 'rdv-detail',
+                builder: (_, s) => RendezVousDetailScreen(rendezVousId: int.parse(s.pathParameters['id']!)),
+                routes: [
+                  GoRoute(path: 'modifier', name: 'rdv-modifier',
+                    builder: (_, s) => RendezVousFormScreen(rendezVousId: int.parse(s.pathParameters['id']!))),
+                ],
               ),
             ],
           ),
@@ -186,20 +123,12 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
 
     errorBuilder: (context, state) => Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text('Page introuvable : ${state.matchedLocation}'),
-            TextButton(
-              onPressed: () => context.go('/dashboard'),
-              child: const Text('Retour au tableau de bord'),
-            ),
-          ],
-        ),
-      ),
+      body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.error_outline, size: 48, color: Colors.red),
+        const SizedBox(height: 16),
+        Text('Page introuvable : ${state.matchedLocation}'),
+        TextButton(onPressed: () => context.go('/dashboard'), child: const Text('Retour au tableau de bord')),
+      ])),
     ),
   );
 });
